@@ -8,10 +8,16 @@ import org.springframework.stereotype.Repository;
 import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.List;
+import java.util.logging.Level;
 
-@Transactional
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Repository
+@Transactional
 public class NoteImpl implements NoteDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(NoteImpl.class);
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -19,11 +25,17 @@ public class NoteImpl implements NoteDao {
 
     @Override
     public Note save(Note note){
-        if(note.getId() == null){
-            entityManager.persist(note); //新增
-            return note;
-        }else{
-            return entityManager.merge(note); //合併
+        try{
+            if(note.getId() == null){
+                entityManager.persist(note); //新增
+                entityManager.flush();
+                return note;
+            }else{
+                return entityManager.merge(note); //合併
+            }
+        }catch (Exception e){
+            logger.error("Error occurred while saving note: {}", note, e);
+            throw e;
         }
     }
 
@@ -36,9 +48,12 @@ public class NoteImpl implements NoteDao {
     }
 
     @Override
-    public void deleteByTitle(String title){
-        Note note = entityManager.find(Note.class,title);
-        if(note != null){
+    public void deleteByTitle(String title) {
+        List<Note> notes = entityManager
+                .createQuery("SELECT n FROM Note n WHERE n.title = :title", Note.class)
+                .setParameter("title", title)
+                .getResultList();
+        for (Note note : notes) {
             entityManager.remove(note);
         }
     }
